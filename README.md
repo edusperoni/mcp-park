@@ -73,7 +73,8 @@ These are the same steps the script performs.
 3. Verify the download:
 
    ```sh
-   grep . "$ARCHIVE.sha256" | shasum -a 256 -c    # on Linux: sha256sum -c
+   grep . "$ARCHIVE.sha256" | shasum -a 256 -c    # macOS
+   grep . "$ARCHIVE.sha256" | sha256sum -c        # Linux
    ```
 
 4. Unpack it and put the binary somewhere permanent:
@@ -105,13 +106,15 @@ to the binary in their configuration.
 
 ## Usage
 
-Put `mcp-park --` in front of the server command:
+Put `mcp-park --` in front of the server command, using the absolute path to
+the binary (after the install script: `/Users/you/.local/bin/mcp-park` on
+macOS, `/home/you/.local/bin/mcp-park` on Linux):
 
 ```json
 {
   "mcpServers": {
     "example": {
-      "command": "/Users/you/.local/bin/mcp-park",
+      "command": "/absolute/path/to/mcp-park",
       "args": ["--", "node", "/path/to/server/dist/index.js"]
     }
   }
@@ -122,7 +125,7 @@ With Claude Code:
 
 ```sh
 claude mcp add-json example \
-  '{"command":"/Users/you/.local/bin/mcp-park","args":["--","node","/path/to/server/dist/index.js"]}'
+  '{"command":"/absolute/path/to/mcp-park","args":["--","node","/path/to/server/dist/index.js"]}'
 ```
 
 | Setting | Default | Meaning |

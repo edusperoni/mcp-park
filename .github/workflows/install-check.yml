@@ -50,3 +50,49 @@ jobs:
           ~/.local/bin/mcp-park --version
           reply=$(printf '%s\n' "$REQUEST" | ~/.local/bin/mcp-park -- cat)
           test "$reply" = "$REQUEST"
+
+  # The manual steps from the README.
+  manual:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archive: mcp-park-x86_64-unknown-linux-musl.tar.gz
+            sum: sha256sum -c
+          - os: ubuntu-24.04-arm
+            archive: mcp-park-aarch64-unknown-linux-musl.tar.gz
+            sum: sha256sum -c
+          - os: ubuntu-latest
+            container: alpine:3
+            archive: mcp-park-x86_64-unknown-linux-musl.tar.gz
+            sum: sha256sum -c
+          - os: macos-latest
+            archive: mcp-park-aarch64-apple-darwin.tar.gz
+            sum: shasum -a 256 -c
+          - os: macos-15-intel
+            archive: mcp-park-x86_64-apple-darwin.tar.gz
+            sum: shasum -a 256 -c
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    env:
+      ARCHIVE: ${{ matrix.archive }}
+    steps:
+      - if: matrix.container
+        run: apk add --no-cache curl
+      - name: Download, verify and unpack
+        run: |
+          curl -LO "https://github.com/edusperoni/mcp-park/releases/latest/download/$ARCHIVE"
+          curl -LO "https://github.com/edusperoni/mcp-park/releases/latest/download/$ARCHIVE.sha256"
+          grep . "$ARCHIVE.sha256" | ${{ matrix.sum }}
+          tar -xzf "$ARCHIVE"
+          mkdir -p ~/.local/bin
+          mv "${ARCHIVE%.tar.gz}/mcp-park" ~/.local/bin/
+      - name: Check the installed binary
+        run: |
+          ~/.local/bin/mcp-park --version
+          reply=$(printf '%s\n' "$REQUEST" | ~/.local/bin/mcp-park -- cat)
+          test "$reply" = "$REQUEST"
