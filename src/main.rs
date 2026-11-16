@@ -29,6 +29,10 @@ Environment:
 
 const ACKNOWLEDGED: &str = "notifications/subscriptions/acknowledged";
 
+/// How long in-flight requests may take to finish after the client closes its
+/// input.
+const DRAIN_LIMIT: Duration = Duration::from_secs(10);
+
 enum Event {
     Client(Vec<u8>),
     ClientEof,
@@ -139,7 +143,9 @@ fn classify(line: &[u8]) -> ClientMessage {
 
 struct Server {
     child: Child,
-    stdin: ChildStdin,
+    /// `None` once the client has closed its side and the server has been
+    /// told so.
+    stdin: Option<ChildStdin>,
     generation: u64,
 }
 
@@ -184,6 +190,9 @@ struct Proxy {
     server_pending: HashSet<String>,
     last_activity: Instant,
     blocked_logged: bool,
+    /// Set when the client closed its input with requests still in flight:
+    /// the time by which the wrapper stops waiting for their replies.
+    drain_until: Option<Instant>,
 }
 
 /// Exit code to terminate the wrapper with.
@@ -192,12 +201,15 @@ type Exit = i32;
 impl Proxy {
     fn run(&mut self, events: Receiver<Event>) -> Exit {
         loop {
-            let event = match self.park_deadline() {
+            let event = match self.drain_until.or_else(|| self.park_deadline()) {
                 Some(deadline) => {
                     let wait = deadline.saturating_duration_since(Instant::now());
                     match events.recv_timeout(wait) {
                         Ok(event) => event,
                         Err(RecvTimeoutError::Timeout) => {
+                            if self.drain_until.is_some() {
+                                return self.shutdown(0);
+                            }
                             self.on_idle();
                             continue;
                         }
@@ -213,7 +225,7 @@ impl Proxy {
                 Event::Client(line) => self.on_client(line),
                 Event::Server(generation, line) => self.on_server(generation, line),
                 Event::ServerEof(generation) => self.on_server_eof(generation),
-                Event::ClientEof => Err(0),
+                Event::ClientEof => self.on_client_eof(),
                 Event::Signal(signal) => Err(128 + signal),
             };
             if let Err(code) = outcome {
@@ -363,7 +375,31 @@ impl Proxy {
             }
         }
         self.touch();
-        self.write_client(&line)
+        self.write_client(&line)?;
+        if self.drain_until.is_some() && self.client_pending.is_empty() {
+            return Err(0);
+        }
+        Ok(())
+    }
+
+    /// The client has nothing more to send. Requests already in flight are
+    /// still answered, as they would be by a server reading to the end of its
+    /// own input.
+    fn on_client_eof(&mut self) -> Result<(), Exit> {
+        if self.server.is_none() || self.client_pending.is_empty() {
+            return Err(0);
+        }
+        self.drain_until = Some(Instant::now() + DRAIN_LIMIT);
+        if self.replay_wait.is_none() {
+            self.close_server_input();
+        }
+        Ok(())
+    }
+
+    fn close_server_input(&mut self) {
+        if let Some(server) = self.server.as_mut() {
+            server.stdin = None;
+        }
     }
 
     /// The server went away without being asked to. The wrapper follows it
@@ -408,6 +444,9 @@ impl Proxy {
         for line in lines {
             self.write_server(&line);
         }
+        if self.drain_until.is_some() {
+            self.close_server_input();
+        }
     }
 
     fn start_server(&mut self, reason: &str) -> Result<(), Exit> {
@@ -440,7 +479,7 @@ impl Proxy {
         self.log(format!("start #{generation} pid {} ({reason})", child.id()));
         self.server = Some(Server {
             child,
-            stdin,
+            stdin: Some(stdin),
             generation,
         });
         self.touch();
@@ -502,13 +541,14 @@ impl Proxy {
     }
 
     fn write_server(&mut self, line: &[u8]) {
-        if let Some(server) = self.server.as_mut() {
+        if let Some(stdin) = self
+            .server
+            .as_mut()
+            .and_then(|server| server.stdin.as_mut())
+        {
             // A failed write means the server is gone; its end-of-output
             // event reports that.
-            let _ = server
-                .stdin
-                .write_all(line)
-                .and_then(|()| server.stdin.write_all(b"\n"));
+            let _ = stdin.write_all(line).and_then(|()| stdin.write_all(b"\n"));
         }
     }
 
@@ -662,6 +702,7 @@ fn main() {
         server_pending: HashSet::new(),
         last_activity: Instant::now(),
         blocked_logged: false,
+        drain_until: None,
     };
     let code = proxy.run(inbox);
     std::process::exit(code);

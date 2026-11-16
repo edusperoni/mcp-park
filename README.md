@@ -155,6 +155,8 @@ correctness: the server simply stays up, as it would without the wrapper.
   outstanding in either direction.
 - **Stopping.** The server's input is closed first; if it has not exited after
   the grace period its process group gets SIGTERM, then SIGKILL.
+- **Closing the client side.** Requests still in flight when the client closes
+  its input are answered, for up to 10 seconds, before the server is stopped.
 - **Failures are passed on, not papered over.** If the server exits on its
   own, the wrapper exits with the same code and answers nothing on its behalf.
 - **Server state is lost on park.** Anything a server remembers between the

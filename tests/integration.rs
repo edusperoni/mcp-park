@@ -69,6 +69,10 @@ fn main() {
             "server_crash_takes_the_wrapper_down",
             server_crash_takes_the_wrapper_down,
         ),
+        (
+            "in_flight_request_survives_input_closing",
+            in_flight_request_survives_input_closing,
+        ),
         ("sigterm_stops_a_live_server", sigterm_stops_a_live_server),
         (
             "sigkill_leaves_no_live_server",
@@ -312,6 +316,21 @@ fn server_crash_takes_the_wrapper_down() {
         .expect("wrapper must not hang");
     assert_eq!(status.code(), Some(3));
     assert!(session.seen.iter().all(|m| m["id"] != json!(2)));
+}
+
+fn in_flight_request_survives_input_closing() {
+    let ctx = Ctx::new("drain").env("MOCK_LIST_DELAY_MS", "300");
+    let mut session = ctx.wrapped();
+    for line in CLASSIC.lines() {
+        session.send(line);
+    }
+    session.stdin = None;
+    assert_eq!(tool_names(&session.reply(json!(1))), ["alpha", "beta"]);
+    let status = session
+        .wait_exit(Duration::from_secs(5))
+        .expect("exits once drained");
+    assert!(status.success());
+    ctx.wait_server_gone();
 }
 
 fn sigterm_stops_a_live_server() {
