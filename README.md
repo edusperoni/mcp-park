@@ -24,7 +24,7 @@ session sees the tool list the server reports at that moment.
 
 ## Install
 
-Requires a [Rust toolchain](https://rustup.rs) (1.82 or newer).
+Requires a recent stable [Rust toolchain](https://rustup.rs).
 
 ```sh
 cargo install --git https://github.com/edusperoni/mcp-park --locked

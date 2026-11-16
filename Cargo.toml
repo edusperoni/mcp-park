@@ -2,7 +2,6 @@
 name = "mcp-park"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82"
 description = "Stdio wrapper that keeps an MCP server stopped until a real call needs it"
 license = "MIT"
 repository = "https://github.com/edusperoni/mcp-park"
