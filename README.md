@@ -24,14 +24,82 @@ session sees the tool list the server reports at that moment.
 
 ## Install
 
-Requires a recent stable [Rust toolchain](https://rustup.rs).
+Prebuilt binaries are published for macOS (Apple silicon and Intel) and Linux
+(x86-64 and ARM64). No Rust toolchain is needed.
+
+### Install script
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/edusperoni/mcp-park/releases/latest/download/mcp-park-installer.sh | sh
+```
+
+The script detects your platform, downloads the matching archive from the
+latest release, verifies its checksum (when `sha256sum` is available), and
+installs the binary as
+`~/.local/bin/mcp-park`. It also adds `~/.local/bin` to `PATH` in your shell
+profile; pass `--no-modify-path` to skip that:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/edusperoni/mcp-park/releases/latest/download/mcp-park-installer.sh | sh -s -- --no-modify-path
+```
+
+### Manual install
+
+These are the same steps the script performs.
+
+1. Pick the archive for your platform:
+
+   | Platform | Archive |
+   |---|---|
+   | macOS, Apple silicon | `mcp-park-aarch64-apple-darwin.tar.gz` |
+   | macOS, Intel | `mcp-park-x86_64-apple-darwin.tar.gz` |
+   | Linux, x86-64 | `mcp-park-x86_64-unknown-linux-musl.tar.gz` |
+   | Linux, ARM64 | `mcp-park-aarch64-unknown-linux-musl.tar.gz` |
+
+   The Linux binaries are statically linked and do not depend on the system
+   C library.
+
+2. Download it and its checksum from the
+   [latest release](https://github.com/edusperoni/mcp-park/releases/latest):
+
+   ```sh
+   ARCHIVE=mcp-park-aarch64-apple-darwin.tar.gz
+   curl -LO "https://github.com/edusperoni/mcp-park/releases/latest/download/$ARCHIVE"
+   curl -LO "https://github.com/edusperoni/mcp-park/releases/latest/download/$ARCHIVE.sha256"
+   ```
+
+3. Verify the download:
+
+   ```sh
+   shasum -a 256 -c "$ARCHIVE.sha256"    # on Linux: sha256sum -c "$ARCHIVE.sha256"
+   ```
+
+4. Unpack it and put the binary somewhere permanent:
+
+   ```sh
+   tar -xzf "$ARCHIVE"
+   mkdir -p ~/.local/bin
+   mv "${ARCHIVE%.tar.gz}/mcp-park" ~/.local/bin/
+   ```
+
+5. Check that it runs:
+
+   ```sh
+   ~/.local/bin/mcp-park --version
+   ```
+
+### From source
+
+With a recent stable [Rust toolchain](https://rustup.rs):
 
 ```sh
 cargo install --git https://github.com/edusperoni/mcp-park --locked
 ```
 
-This puts `mcp-park` in `~/.cargo/bin`. MCP clients may start servers with a
-minimal `PATH`, so prefer the absolute path in their configuration.
+This puts `mcp-park` in `~/.cargo/bin`.
+
+MCP clients may start servers with a minimal `PATH`, so use the absolute path
+to the binary in their configuration.
 
 ## Usage
 
@@ -41,7 +109,7 @@ Put `mcp-park --` in front of the server command:
 {
   "mcpServers": {
     "example": {
-      "command": "/absolute/path/to/mcp-park",
+      "command": "/Users/you/.local/bin/mcp-park",
       "args": ["--", "node", "/path/to/server/dist/index.js"]
     }
   }
@@ -52,7 +120,7 @@ With Claude Code:
 
 ```sh
 claude mcp add-json example \
-  '{"command":"/absolute/path/to/mcp-park","args":["--","node","/path/to/server/dist/index.js"]}'
+  '{"command":"/Users/you/.local/bin/mcp-park","args":["--","node","/path/to/server/dist/index.js"]}'
 ```
 
 | Setting | Default | Meaning |
