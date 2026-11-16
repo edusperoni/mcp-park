@@ -36,8 +36,10 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/edusperoni/mcp-park/rel
 The script detects your platform, downloads the matching archive from the
 latest release, verifies its checksum (when `sha256sum` is available), and
 installs the binary as
-`~/.local/bin/mcp-park`. It also adds `~/.local/bin` to `PATH` in your shell
-profile; pass `--no-modify-path` to skip that:
+`~/.local/bin/mcp-park`. It also adds `~/.local/bin` to `PATH` by writing a
+small env script under `~/.config/mcp-park/` and sourcing it from your shell
+profiles (`~/.profile`, `~/.zshrc`, fish `conf.d`). Pass `--no-modify-path` to
+skip that:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/edusperoni/mcp-park/releases/latest/download/mcp-park-installer.sh | sh -s -- --no-modify-path
@@ -71,7 +73,7 @@ These are the same steps the script performs.
 3. Verify the download:
 
    ```sh
-   shasum -a 256 -c "$ARCHIVE.sha256"    # on Linux: sha256sum -c "$ARCHIVE.sha256"
+   grep . "$ARCHIVE.sha256" | shasum -a 256 -c    # on Linux: sha256sum -c
    ```
 
 4. Unpack it and put the binary somewhere permanent:

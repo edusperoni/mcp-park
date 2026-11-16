@@ -1,0 +1,52 @@
+name: Install check
+
+# Installs the latest published release the way the README tells users to,
+# on every supported platform, and checks the binary runs.
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+env:
+  INSTALLER: https://github.com/edusperoni/mcp-park/releases/latest/download/mcp-park-installer.sh
+  REQUEST: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+jobs:
+  script:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Run the install script
+        run: curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER" | sh
+      - name: Check the installed binary
+        run: |
+          ~/.local/bin/mcp-park --version
+          reply=$(printf '%s\n' "$REQUEST" | ~/.local/bin/mcp-park -- cat)
+          test "$reply" = "$REQUEST"
+
+  # The Linux binaries are static; Alpine has no glibc to fall back on.
+  alpine:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    container: alpine:3
+    steps:
+      - run: apk add --no-cache curl
+      - name: Run the install script
+        run: curl --proto '=https' --tlsv1.2 -LsSf "$INSTALLER" | sh
+      - name: Check the installed binary
+        run: |
+          ~/.local/bin/mcp-park --version
+          reply=$(printf '%s\n' "$REQUEST" | ~/.local/bin/mcp-park -- cat)
+          test "$reply" = "$REQUEST"
